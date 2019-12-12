@@ -1,0 +1,390 @@
+```{r}
+#1.1
+#library(read.csv)
+#setwd("~/Desktop/TDDE01/tdde01-master/Labb 2")
+#to install tree package  from link:
+# url = "https://cran.r-project.org/src/contrib/Archive/tree/tree_1.0-35.tar.gz"
+# install.packages(url, repos = NULL, type = "source")
+
+data <- read.csv("australian-crabs.csv")
+plot(x = data$CL, y = data$RW, col = c("blue","coral")[data$sex])
+```
+Yes.
+
+```{r}
+#1.2
+library(MASS)
+fit = lda(formula = data$sex ~ data$CL + data$RW, data = data)
+pred = predict(fit,data)
+prediction = pred$class
+CL = data$CL
+RW = data$RW
+subset = data.frame(prediction, CL,RW)
+
+
+
+plot(x = subset$CL, y = subset$RW, col = c("blue","coral")[subset$prediction])
+C_table=table(pred$class,data$sex)
+MC_rate = 1 - sum(diag(C_table))/sum(C_table)
+
+
+cat("The MC rate is : ", MC_rate)
+```
+
+The model performs good. Very low misclassifcation rate. We are however training and testing on the same data set.
+
+
+
+```{r}
+#1.3
+fit = lda(formula = data$sex ~ data$CL + data$RW, data = data, prior= c(0.1, 0.9))
+fit$prior # We control that the prior probabilties have changed.
+pred = predict(fit,data)
+C_table = table(pred$class,data$sex)
+MC_rate = 1 - sum(diag(C_table))/sum(C_table)
+cat("The MC rate for model with prior P(female) = 0.1, P(male) = 0.9, is: ", MC_rate)
+
+```
+The change in the MC rate is quite low. This is due to the data set being quite large and the model being good at classifying. With a larger dataset, and weaker model, the difference would be greater. It does however make sense that the predictions are worse. PÂverkar de v‰rden d‰r den ‰r os‰ker.
+
+
+```{r}
+#1.4
+fit = glm(formula = sex ~ CL + RW, data = data, family = "binomial")
+
+#family = the family of the target variable.
+#Usually, if the output is binary, the family is binomial. The common other case is continuous output, where the general output is gaussian.
+pred = predict(fit,newdata = data, type = "response")
+#response is required for this case.
+
+pred = ifelse(pred > 0.9, "Male", "Female") 
+#pred = round(pred) #instead of ifelse.
+males = data[which(pred == "Male"),]
+females = data[which(pred == "Female"),]
+predsex = rbind(males,females)
+plot = rbind(data,predsex)
+
+
+C_table = table(pred,data$sex)
+k = coef(fit[2])/coef(fit[3])
+m = coef(fit)[1]/(coef(fit)[3])
+
+
+
+
+MC_rate = 1 - sum(diag(C_table))/sum(C_table)
+
+
+cat("\nThe MC rate for the logistic regression model is: ", MC_rate)
+
+#boundary = 0 = ay+bx+z
+
+k = coef(fit)[2]/(-coef(fit)[3]) 
+
+m = coef(fit)[1]/(-coef(fit)[3])
+
+plot(plot$RW,plot$CL, col = c("blue","coral")[plot$sex])
+abline(k,m)
+
+ cat("the line is: ", k, m)
+ 
+ 
+
+```
+
+It is noticeable that the MC rate for the logistic regression model is the same as for the linear discrimination model. The conclusion is that both models use the same model.
+
+```{r}
+#2.1
+
+library(readxl)
+
+data <- read_excel("creditscoring.xls")
+n = dim(data)[1]
+set.seed(12345)
+train=sample(1:n,floor(n*0.5))
+test_and_val=data[-train,]
+train =data[train,]
+n2 = dim(test_and_val)[1]
+set.seed(12345)
+val = sample(1:n2,floor(n2*0.5))
+test = test_and_val[-val,]
+val= test_and_val[val,]
+
+```
+
+```{r}
+#2.2
+library("tree")
+
+
+fit_deviance = tree(formula=as.factor(good_bad)~., data=train, split = "deviance")
+fit_gini     = tree(formula=as.factor(good_bad)~., data=train, split  = "gini")
+
+yfit_deviance_traindata = predict(fit_deviance,newdata=train)
+yfit_deviance_traindata = ifelse(yfit_deviance_traindata[,1]>yfit_deviance_traindata[,2],"bad","good")
+CT_dev_train = table(train$good_bad,yfit_deviance_traindata)
+MR_rate_dev_train = 1 - sum(diag(CT_dev_train))/sum(CT_dev_train)
+
+yfit_deviance_testdata = predict(fit_deviance,newdata=test)
+yfit_deviance_testdata = ifelse(yfit_deviance_testdata[,1]>yfit_deviance_testdata[,2],"bad","good")
+CT_dev_test = table(test$good_bad,yfit_deviance_testdata)
+MR_rate_dev_test = 1 - sum(diag(CT_dev_test))/sum(CT_dev_test)
+
+
+yfit_gini_traindata = predict(fit_gini,newdata=train)
+yfit_gini_traindata = ifelse(yfit_gini_traindata[,1]>yfit_gini_traindata[,2],"bad","good")
+CT_gin_train = table(train$good_bad,yfit_gini_traindata)
+MR_rate_gin_train = 1 - sum(diag(CT_gin_train))/sum(CT_gin_train)
+
+yfit_gini_testdata = predict(fit_gini,newdata=test)
+yfit_gini_testdata = ifelse(yfit_gini_testdata[,1]>yfit_gini_testdata[,2],"bad","good")
+CT_gin_test = table(test$good_bad,yfit_gini_testdata)
+MR_rate_gin_test = 1 - sum(diag(CT_gin_test))/sum(CT_gin_test)
+
+
+cat("MC rate for deviance based model:\nTrain set: ", MR_rate_dev_train, "\nTest set: ", MR_rate_dev_test,
+    "\nMC rate for gini based model:\nTrain set: ", MR_rate_gin_train, "\nTest set: ", MR_rate_gin_test,
+    "\n\n The model that bests fits the test data is a deviance based model (lower MC rate).\n Lower MC rate for deviance makes sense since it is the ML-function")
+
+
+
+```
+
+```{r}
+#2.3.1 - optimal tree by penalizing
+library("tree")
+fit = tree(formula=as.factor(good_bad)~., data=train, split = "deviance")
+cv.res=cv.tree(fit)
+plot(cv.res$size, cv.res$dev, type ="b", main= "dev(#leaves)")
+plot(log(cv.res$k),cv.res$dev, main = "dev(log(#leaves))")
+```
+Unclear params
+cv.res#size
+cv.res#params
+log(cv.res#k)
+cv.res#dev
+
+```{r}
+set.seed(12345)
+trainScore = rep(0,9)
+testScore  = rep(0,9)
+for (i in 2:20) {
+  prunedTree = prune.tree(fit,best=i)
+  pred = predict(prunedTree,newdata =val, type = "tree")
+  trainScore[i]= deviance(prunedTree)
+  testScore[i] = deviance(pred)
+}
+plot(2:21,trainScore[2:21],type = "b", col = "red", ylim=c(0,600))
+points(2:21,testScore[2:21],type = "b", col = "blue")
+
+bestTree= prune.tree(fit, best = which.min(testScore[2:21])+1)
+# min f√∂r att devians motsvarar -likelihood
+# +1 f√∂r att vi plockar ut en subvektor med ett mindre index.
+plot(bestTree)
+text(bestTree)
+
+
+Yfit=predict(bestTree, newdata=val, type = "class")
+CT = table(val$good_bad,Yfit)
+
+MC_rate = 1-sum(diag(CT))/sum(CT)
+
+
+fit =tree(formula=as.factor(good_bad)~., data=train, split = "deviance")
+fit = prune.tree(fit,best=5)
+
+plot(fit)
+text(fit)
+```
+
+
+```{r}
+#2.4
+library(MASS)
+library(e1071)
+fit = naiveBayes(as.factor(good_bad) ~., data = train)
+Yfit_train = predict(fit, newdata = train, type = "class")
+Yfit_test = predict(fit, newdata = test, type = "class")
+#class returnerar good/bad, alternativet "raw" (se help(predict.naive)) retunerar sannolikheter.
+#predict fungrar p√• s√• s√§tt att den kollar vilken model vi kastar in. Vill man veta hur den fungrar f√∂r en viss modell, anv√§nd
+# predict-<modellens namn>
+CT_train = table(train$good_bad,Yfit_train)
+CT_test = table(test$good_bad,Yfit_test)
+
+MC_rate_train_NB = 1 - sum(diag(CT_train))/sum(CT_train)
+MC_rate_test_NB = 1 - sum(diag(CT_test))/sum(CT_test)
+
+
+fit_T = tree(formula=as.factor(good_bad)~., data=train, split = "deviance")
+fit_T= prune.tree(fit_T, 4)
+
+Yfit_train=predict(fit_T, newdata=train, type = "class")
+CT_train_T= table(train$good_bad,Yfit_train)
+Yfit_test=predict(fit_T, newdata=test, type = "class")
+CT_test_T = table(test$good_bad,Yfit_test)
+
+MC_rate_train_T = 1 - sum(diag(CT_train_T))/sum(CT_train_T)
+MC_rate_test_T = 1 - sum(diag(CT_test_T))/sum(CT_test_T)
+
+
+
+
+cat("\nThe NaÓve Bayes model performs the following MC rates","\nOn test data: ", MC_rate_test_NB, "%\nOn train data: ", MC_rate_train_NB, "%",
+    "\nThis compares to the following MC rates for best tree model: ","\nOn test data: ", MC_rate_test_T, "%\nOn train data: ", MC_rate_train_T, "%",
+    "\nConclusion: the tree model fits both the train and test data better than the NaÔve Bayes model")
+
+
+```
+
+```{r}
+#2.5        ####################################################################################
+library(MASS)
+library(e1071)
+library("tree")
+fit_NB = naiveBayes(as.factor(good_bad) ~., data = train)
+fit_T = tree(formula=as.factor(good_bad)~., data=train, split = "deviance")
+fit_T= prune.tree(fit_T, 4)
+
+
+Yfit_NB = predict(fit_NB, newdata = test, type = "raw") # raw ger sannolikheter.
+Yfit_T = predict(fit_T,  newdata = test) 
+scores_NB = matrix(numeric(((2*length(n)))),ncol =2) #TPR and FPR for Naive Bayes
+colnames(scores_NB) = c("TPR", "FPR")
+
+scores_T = matrix(numeric(2*length(n)),ncol =2) #TPR and FPR for Tree model
+colnames(scores_T) = c("TPR", "FPR")
+
+n= seq(0.05,0.95,0.05)
+for (i in n){
+index = match(i,n)
+
+Y_hat_NB = ifelse(Yfit_NB[,2]>i,"good","bad")
+Y_hat_T =  ifelse(Yfit_T[,2]>i,"good","bad")
+
+CT_NB = table(test$good_bad,Y_hat_NB)
+CT_T = table(test$good_bad,Y_hat_T)
+
+#TPR (True Positive Rate) = probability target being true and model predicting true.
+#FPR (False Positive Rate) = probability of the target being false while the model predicts it to be true
+
+scores_NB[index,1] = (CT_NB[1,1]/sum(CT_NB[1,])) # TPR = (true|true)/(true|true+false|true)
+scores_NB[index,2] = (CT_NB[2,1]/sum(CT_NB[2,])) # FPR = (true|false)/(false|false+true|false)
+
+scores_T[index,1] = (CT_T[1,1]/sum(CT_T[1,])) # TPR = (true|true)/(true|true+false|true)
+scores_T[index,2] = (CT_T[2,1]/sum(CT_T[2,])) # FPR = true|false/(false|false+true|false)
+
+}
+
+par( pty = "s")
+plot(scores_NB[,2],scores_NB[,1],type = "l", col = "blue", xlim = c(0,1), ylim = c(0,1), 
+     xlab = "fpr",
+     ylab= "tpr")
+lines(scores_T[,2],scores_T[,1], col = "green")
+
+```
+
+```{r} 
+#2. 6                                                            ############ N≈GOT FEL HƒR OCKS≈! ############
+Loss = matrix(c(0,10,1,0),nrow=2, ncol = 2, byrow = FALSE)
+fit_NB_LF = naiveBayes(as.factor(good_bad) ~., data = train,tables =Loss) # testar tables men tror det ‰r fel.
+fit_NB = naiveBayes(as.factor(good_bad) ~., data = train)
+Y_hat_LF = predict(fit_NB_LF, newdata = val, type = "class")
+Y_hat_NB = predict(fit_NB, newdata = val, type = "class")
+
+table(Y_hat_LF,val$good_bad)
+table(Y_hat_NB,val$good_bad)
+
+```
+
+
+```{r}
+#4.1
+#library(read.csv)
+data <- read.csv("nirspectra.csv", sep = ";", colClasses = "numeric", dec = ",")
+#datapunkterna separeras av semikolon ej komma.
+#datapunkterna ‰r pÂ formen X,Y och behˆver gˆras om till X.Y genom dec.
+
+data$Viscosity = c() #tar bort 'target' sÂ att vi enbart har feature kvar (PFA utfˆrs enbart pÂ features).
+
+model_PCA = prcomp(data, scale.=TRUE)
+lambda = model_PCA$sdev^2 #egenv‰rden
+
+library(sprintr)
+#sprinftf("%2.3f",lambda/sum(lambda)*100)
+
+proportions = lambda/sum(lambda)*100
+#plot(proportions, type = "h")
+
+barplot(proportions, ylim = c(0,100), main = "Degree of variation explaination per PC")
+accumlated_proprtion = numeric(length(proportions))
+PC1_expl = lambda[1]/sum(lambda)
+
+iter = 0
+degree = 0
+while (degree < 0.99) {
+  iter = iter +1;
+  degree = degree + lambda[iter]/sum(lambda)
+    
+}
+cat( iter, "PCs are needed to explain 99 % of the total variance. They describe", round(degree,3), "% of the variance.")
+degree = degree + lambda[1]/sum(lambda)
+
+#fˆrdelning av varians
+
+
+#Fattar inte fˆljande:
+#Provide also a plot of the scores in the coordinates (PC1, PC2).
+#Are there unusual diesel fuels according to this plot?
+
+#head((model_PCA$rotation[,1]))
+#head((model_PCA$rotation[,2]))
+
+
+plot(model_PCA$x[,1],model_PCA$x[,2])
+
+#Seems we do not need another component, especially as 
+```
+
+
+```{r}
+#4.2
+U = model_PCA$rotation
+plot(U[,1], main = "Traceplot PC 1")
+plot(U[,2], main = "Traceplot PC 2")
+
+
+cat("Tolkning: Princpalkomponent 1 beskriver den fˆrsta delen feature-setet. PC 2 beskriver den andra. PCA 2 beskrivs i hˆgre grad av fÂ features ‰n 1.")
+
+
+
+
+```
+
+```{r}
+#4.3 fastica()
+
+library(fastICA)
+set.seed(12345)
+model_ICA = fastICA(data, n.comp=2)
+
+W = model_ICA$W
+K = model_ICA$K
+W_prime = K%*%W # %*% = matrix multiplication, t() : transpose
+
+plot(W_prime[,1], main = "traceplot for fastICA component 1")
+plot(W_prime[,2], main = "traceplot for fastICA component 2")
+#model_ICA$W
+
+#W_prime verkar innehÂlla vilka features som respektive PCA-komponent utgˆrs av. Dock verkar PCA 1 koppla mot ICA 2. PCA 2 mot ICA 1. Kanske. SvÂrt att s‰ga.
+
+
+
+plot(model_ICA$X[,1],model_ICA$X[,2])
+
+#Quite similar plots.
+```
+
+
+
+
